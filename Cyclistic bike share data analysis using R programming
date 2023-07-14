@@ -1,0 +1,163 @@
+## To consolidate previous 12 months bike share data into a single table 
+## and clean,prepare the data to analyse and find out the difference between 
+## member and casual riders of the cyclistic bike share company and figure out
+## how to convert casual riders to members.
+
+# Install required packages
+# tidyverse for data import and wrangling
+# lubridate for date functions
+# ggplot for visualization
+
+install.packages("tidyverse")
+library(tidyverse) # for data wrangling
+library(lubridate) # for date functions
+library(ggplot2) # for data visualization
+
+# set working directory
+getwd() #gets working directory
+setwd("/Users/Asha/Desktop/cyclistic_data_prev_12_months") # sets the working directory
+
+# Import data
+table2023_05 <- read.csv("202305-divvy-tripdata 2.csv")
+table2023_04 <- read.csv("202304-divvy-tripdata.csv")
+table2023_03 <- read.csv("202303-divvy-tripdata.csv")
+table2023_02 <- read.csv("202302-divvy-tripdata.csv")
+table2023_01 <- read.csv("202301-divvy-tripdata.csv")
+table2022_12 <- read.csv("202212-divvy-tripdata.csv")
+table2022_11 <- read.csv("202211-divvy-tripdata.csv")
+table2022_10 <- read.csv("202210-divvy-tripdata 2.csv")
+table2022_09 <- read.csv("202209-divvy-publictripdata 2.csv")
+table2022_08 <- read.csv("202208-divvy-tripdata 2.csv")
+table2022_07 <- read.csv("202207-divvy-tripdata 2.csv")
+table2022_06 <- read.csv("202207-divvy-tripdata 2.csv")
+
+# Compare column names of the all the tables
+colnames(table2023_05)
+colnames(table2023_04)
+colnames(table2023_03)
+colnames(table2023_02)
+colnames(table2023_01)
+colnames(table2022_12)
+colnames(table2022_11)
+colnames(table2022_10)
+colnames(table2022_09)
+colnames(table2022_08)
+colnames(table2022_07)
+colnames(table2022_06)
+
+# Inspect the dataframes and look for incongruencies
+str(table2023_05)
+str(table2023_04)
+str(table2023_03)
+str(table2023_02)
+str(table2023_01)
+str(table2022_12)
+str(table2022_11)
+str(table2022_10)
+str(table2022_09)
+str(table2022_08)
+str(table2022_07)
+str(table2022_06)
+
+# combine and merge csv files
+data_all <- rbind(table2023_05,table2023_04,table2023_03,table2023_02,table2023_01,table2022_12,
+      table2022_11,table2022_10,table2022_09,table2022_08,table2022_07,table2022_06)
+
+# preview data
+View(data_all)
+
+# data structure of data_all
+str(data_all)
+
+# initial summary of data
+summary(data_all)
+
+## DATA CLEANING------------------------------------------------------------------
+install.packages("dplyr")
+library(dplyr)
+# clean names; include only characters, numbers, and underscores in names.
+
+data_all_v02 <- clean_names(data_all)
+
+# remove empty rows and columns.
+
+data_all_v03 <- remove_empty(data_all_v02)
+
+#remove duplicates; select only unique rows.
+data_all_v04 <- distinct(data_all_v03)
+
+# check for naming anomalies; include only appropriate entries for variables with limited response types.
+count(data_all_v04, rideable_type)
+count(data_all_v04, member_casual)
+
+# convert started_at and ended_at from chr to date-time format
+data_all_v05 <- data_all_v04
+data_all_v05$started_at <- as.POSIXct(data_all_v05$started_at,format = "%Y-%m-%d %H:%M:%S")
+data_all_v05$ended_at <-as.POSIXct(data_all_v05$ended_at,format = "%Y-%m-%d %H:%M:%S")
+
+#parse date for analysis; create columns for year, month, day, hour; ensure case of "Y/y, M/m, D/d, H/h, M/m, S/s" is correct.
+data_all_v05$year <- format(data_all_v05$started_at, "%Y")
+data_all_v05$month <- format(data_all_v05$started_at, "%m")
+data_all_v05$day <- format(data_all_v05$started_at, "%d")
+data_all_v05$hour <- format(data_all_v05$started_at, "%H")
+data_all_v05$day_of_week <- format(data_all_v05$started_at, "%A")
+
+# Add ridelength
+data_all_v05$ride_length <- difftime(data_all_v05$ended_at,data_all_v05$started_at)
+str(data_all_v05)
+
+# Convert "ride_length" from Factor to numeric so we can run calculations on the data
+is.factor(data_all_v05$ride_length)
+data_all_v05$ride_length <- as.numeric(as.character(data_all_v05$ride_length))
+is.numeric(data_all_v05$ride_length)
+
+summary(data_all_v05$ride_length)
+
+data_all_v06 <- data_all_v05[!(data_all_v05$start_station_name == "HQ QR" | data_all_v05$ride_length<0),] 
+summary(data_all_v06)
+
+## Descriptive analysis
+# Compare members and casual users
+aggregate(data_all_v06$ride_length ~ data_all_v06$member_casual, FUN = mean)
+aggregate(data_all_v06$ride_length ~ data_all_v06$member_casual, FUN = median)
+aggregate(data_all_v06$ride_length ~ data_all_v06$member_casual, FUN = max)
+aggregate(data_all_v06$ride_length ~ data_all_v06$member_casual, FUN = min)
+
+# See the average ride time by each day for members vs casual users
+aggregate(data_all_v06$ride_length ~ data_all_v06$member_casual + data_all_v06$day_of_week, FUN = mean)
+
+#order the weekdays
+data_all_v06$day_of_week <- ordered(data_all_v06$day_of_week, levels=c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+
+# average ride time by each day for member vs casual
+aggregate(data_all_v06$ride_length ~ data_all_v06$member_casual + data_all_v06$day_of_week, FUN = mean)
+
+# analyze ridership data by type and weekday
+
+data_all_v06 %>% mutate(weekday = wday(started_at,label = TRUE)) %>% group_by(member_casual,weekday) %>% 
+  summarise(number_of_rides =n(),average_duration = mean(ride_length)) %>% arrange(member_casual,weekday) %>% 
+  drop_na()
+
+# Visualizing percentage of casual vs member riders
+data_all_v06 %>% sum(rideable_type) %>% group_by(rideable_type)
+
+#Visualizing number of rides by rider type
+options(scipen = 10)
+data_all_v06 %>% mutate(weekday = wday(started_at,label = TRUE)) %>% group_by(member_casual,weekday) %>% 
+  summarise(number_of_rides =n(),average_duration = mean(ride_length)) %>% arrange(member_casual,weekday) %>% 
+  drop_na() %>% ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")
+
+# Visualizing average trip duration
+options(scipen = 10)
+data_all_v06 %>% mutate(weekday = wday(started_at,label = TRUE)) %>% group_by(member_casual,weekday) %>% 
+  summarise(number_of_rides =n(),average_duration = mean(ride_length)) %>% arrange(member_casual,weekday) %>% 
+  drop_na() %>% ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge")
+
+summary(data_all_v06)
+# Visualizing type of ride used by member and casual rider
+data_all_v06 %>% 
+  drop_na() %>% 
+  ggplot(aes(x = rideable_type,fill=member_casual)) +
+  geom_bar() 
